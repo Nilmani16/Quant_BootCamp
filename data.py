@@ -139,11 +139,11 @@ def validate_data(data):
         assert test.index.max() <= pd.Timestamp(TEST_END)
 
         # Check required columns
-        required = {"Open", "High", "Low", "Close", "Volume"}
+        required = ["Open", "High", "Low", "Close", "Volume"]
 
-        assert required.issubset(train.columns)
-        assert required.issubset(test.columns)
-
+        assert all(col in train.columns for col in required)
+        assert all(col in test.columns for col in required)
+        
         # Check missing values
         assert not train[required].isnull().any().any()
         assert not test[required].isnull().any().any()
