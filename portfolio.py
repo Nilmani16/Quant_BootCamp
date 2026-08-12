@@ -14,9 +14,6 @@ from metrics import (
 )
 
 
-TRADING_DAYS = 252
-
-
 # ============================================================
 # 1. ALIGN EQUITY CURVES
 # ============================================================
@@ -37,13 +34,10 @@ def align_equity_curves(equity_curves):
     Returns
     -------
     pd.DataFrame
-        Aligned equity curves.
     """
 
     if not equity_curves:
-        raise ValueError(
-            "equity_curves cannot be empty."
-        )
+        raise ValueError("equity_curves cannot be empty.")
 
     curves = {}
 
@@ -56,8 +50,7 @@ def align_equity_curves(equity_curves):
 
             if "Equity" not in curve.columns:
                 raise ValueError(
-                    f"{ticker}: DataFrame must contain "
-                    "'Equity' column."
+                    f"{ticker}: DataFrame must contain 'Equity' column."
                 )
 
             curve = curve["Equity"]
@@ -65,19 +58,14 @@ def align_equity_curves(equity_curves):
         curves[ticker] = curve.astype(float)
 
     if not curves:
-        raise ValueError(
-            "No valid equity curves found."
-        )
+        raise ValueError("No valid equity curves found.")
 
-    aligned = pd.concat(
-        curves,
-        axis=1
-    )
+    aligned = pd.concat(curves, axis=1)
 
     aligned = aligned.sort_index()
 
-    # Equity is carried forward on days where a stock
-    # has no new observation.
+    # Carry forward equity on dates where a stock
+    # has no observation.
     aligned = aligned.ffill()
 
     aligned = aligned.dropna()
@@ -86,7 +74,7 @@ def align_equity_curves(equity_curves):
 
 
 # ============================================================
-# 2. COMBINED PORTFOLIO
+# 2. COMBINED STRATEGY PORTFOLIO
 # ============================================================
 
 def build_combined_portfolio(
@@ -94,36 +82,24 @@ def build_combined_portfolio(
     initial_capital
 ):
     """
-    Build an equal-capital combined portfolio.
-
-    Each stock is assumed to receive an equal share
-    of the total portfolio capital.
+    Build equal-capital combined portfolio.
 
     Example:
-        ₹1,000,000 total
+        Total capital = ₹1,000,000
         5 stocks
         ₹200,000 per stock
 
-    Since individual equity curves already contain
-    their allocated capital, we simply sum them.
+    The individual equity curves are summed.
     """
 
-    aligned = align_equity_curves(
-        equity_curves
-    )
+    aligned = align_equity_curves(equity_curves)
 
     combined = aligned.sum(axis=1)
 
     combined.name = "Combined Portfolio"
 
-    expected_initial = float(
-        initial_capital
-    )
-
-    # Sanity check.
-    actual_initial = float(
-        combined.iloc[0]
-    )
+    expected_initial = float(initial_capital)
+    actual_initial = float(combined.iloc[0])
 
     if not np.isclose(
         actual_initial,
@@ -132,17 +108,16 @@ def build_combined_portfolio(
         atol=1.0
     ):
         print(
-            "WARNING: Combined portfolio initial "
-            f"equity ₹{actual_initial:,.2f} "
-            f"differs from expected "
-            f"₹{expected_initial:,.2f}."
+            f"WARNING: Portfolio starts at "
+            f"₹{actual_initial:,.2f}, expected "
+            f"₹{expected_initial:,.2f}"
         )
 
     return combined
 
 
 # ============================================================
-# 3. PORTFOLIO METRICS
+# 3. PORTFOLIO PERFORMANCE
 # ============================================================
 
 def calculate_portfolio_metrics(
@@ -154,14 +129,10 @@ def calculate_portfolio_metrics(
     """
 
     if portfolio_curve is None:
-        raise ValueError(
-            "portfolio_curve cannot be None."
-        )
+        raise ValueError("portfolio_curve cannot be None.")
 
     if len(portfolio_curve) == 0:
-        raise ValueError(
-            "portfolio_curve is empty."
-        )
+        raise ValueError("portfolio_curve is empty.")
 
     return {
         "Final Equity":
@@ -180,19 +151,13 @@ def calculate_portfolio_metrics(
             ),
 
         "Sharpe":
-            sharpe_ratio(
-                portfolio_curve
-            ),
+            sharpe_ratio(portfolio_curve),
 
         "Sortino":
-            sortino_ratio(
-                portfolio_curve
-            ),
+            sortino_ratio(portfolio_curve),
 
         "Max Drawdown (%)":
-            maximum_drawdown(
-                portfolio_curve
-            ),
+            maximum_drawdown(portfolio_curve),
 
         "Net PnL":
             float(
@@ -203,7 +168,7 @@ def calculate_portfolio_metrics(
 
 
 # ============================================================
-# 4. BUY & HOLD PORTFOLIO
+# 4. COMBINED BUY & HOLD PORTFOLIO
 # ============================================================
 
 def build_buy_and_hold_portfolio(
@@ -211,16 +176,11 @@ def build_buy_and_hold_portfolio(
     initial_capital
 ):
     """
-    Build an equal-capital Buy & Hold portfolio
-    from the five individual stock Buy & Hold curves.
-
-    The individual curves should already represent
-    equal capital allocations.
+    Build equal-capital Buy & Hold portfolio
+    from the five individual stock curves.
     """
 
-    aligned = align_equity_curves(
-        buy_hold_curves
-    )
+    aligned = align_equity_curves(buy_hold_curves)
 
     combined = aligned.sum(axis=1)
 
@@ -230,7 +190,7 @@ def build_buy_and_hold_portfolio(
 
 
 # ============================================================
-# 5. SCALE BENCHMARK TO PORTFOLIO CAPITAL
+# 5. SCALE BENCHMARK
 # ============================================================
 
 def scale_benchmark_curve(
@@ -238,14 +198,12 @@ def scale_benchmark_curve(
     initial_capital
 ):
     """
-    Scale a benchmark equity curve so that it starts
-    with the same capital as the strategy portfolio.
+    Scale NIFTY Bank benchmark to the same
+    starting capital as the strategy portfolio.
     """
 
     if benchmark_curve is None:
-        raise ValueError(
-            "benchmark_curve cannot be None."
-        )
+        raise ValueError("benchmark_curve cannot be None.")
 
     benchmark_curve = (
         benchmark_curve
@@ -254,13 +212,9 @@ def scale_benchmark_curve(
     )
 
     if len(benchmark_curve) == 0:
-        raise ValueError(
-            "benchmark_curve is empty."
-        )
+        raise ValueError("benchmark_curve is empty.")
 
-    first_value = float(
-        benchmark_curve.iloc[0]
-    )
+    first_value = float(benchmark_curve.iloc[0])
 
     if first_value <= 0:
         raise ValueError(
@@ -273,13 +227,13 @@ def scale_benchmark_curve(
         * initial_capital
     )
 
-    scaled.name = "Benchmark"
+    scaled.name = "NIFTY Bank"
 
     return scaled
 
 
 # ============================================================
-# 6. PORTFOLIO vs BENCHMARK
+# 6. STRATEGY vs BENCHMARK
 # ============================================================
 
 def compare_portfolio_with_benchmarks(
@@ -294,59 +248,44 @@ def compare_portfolio_with_benchmarks(
         Strategy Portfolio
         Buy & Hold Portfolio
         NIFTY Bank
-
-    All curves are normalized to the same starting capital.
     """
 
-    strategy_metrics = (
-        calculate_portfolio_metrics(
-            portfolio_curve,
-            initial_capital
-        )
+    strategy_metrics = calculate_portfolio_metrics(
+        portfolio_curve,
+        initial_capital
     )
 
-    buy_hold_metrics = (
-        calculate_portfolio_metrics(
-            buy_hold_curve,
-            initial_capital
-        )
+    buy_hold_metrics = calculate_portfolio_metrics(
+        buy_hold_curve,
+        initial_capital
     )
 
-    benchmark_scaled = (
-        scale_benchmark_curve(
-            benchmark_curve,
-            initial_capital
-        )
+    benchmark_scaled = scale_benchmark_curve(
+        benchmark_curve,
+        initial_capital
     )
 
-    benchmark_metrics = (
-        calculate_portfolio_metrics(
-            benchmark_scaled,
-            initial_capital
-        )
+    benchmark_metrics = calculate_portfolio_metrics(
+        benchmark_scaled,
+        initial_capital
     )
 
-    comparison = pd.DataFrame(
-        {
-            "Strategy Portfolio":
-                strategy_metrics,
+    comparison = pd.DataFrame({
+        "Strategy Portfolio":
+            strategy_metrics,
 
-            "Buy & Hold Portfolio":
-                buy_hold_metrics,
+        "Buy & Hold Portfolio":
+            buy_hold_metrics,
 
-            "NIFTY Bank":
-                benchmark_metrics,
-        }
-    )
+        "NIFTY Bank":
+            benchmark_metrics,
+    })
 
-    return (
-        comparison,
-        benchmark_scaled
-    )
+    return comparison, benchmark_scaled
 
 
 # ============================================================
-# 7. INDIVIDUAL STOCK CONTRIBUTION
+# 7. STOCK-WISE CONTRIBUTION
 # ============================================================
 
 def stock_contribution(
@@ -354,15 +293,11 @@ def stock_contribution(
     initial_capital
 ):
     """
-    Calculate each stock's contribution to the
-    combined portfolio PnL.
-
-    Assumes equal capital allocation.
+    Calculate each stock's contribution
+    to the combined portfolio.
     """
 
-    aligned = align_equity_curves(
-        equity_curves
-    )
+    aligned = align_equity_curves(equity_curves)
 
     n_stocks = len(aligned.columns)
 
@@ -387,21 +322,15 @@ def stock_contribution(
             pnl / capital_per_stock
         ) * 100
 
-        rows.append(
-            {
-                "Ticker": ticker,
-                "Initial Capital":
-                    capital_per_stock,
-                "Final Equity":
-                    final_equity,
-                "Net PnL": pnl,
-                "Return (%)": ret,
-            }
-        )
+        rows.append({
+            "Ticker": ticker,
+            "Initial Capital": capital_per_stock,
+            "Final Equity": final_equity,
+            "Net PnL": pnl,
+            "Return (%)": ret,
+        })
 
-    result = pd.DataFrame(rows)
-
-    return result
+    return pd.DataFrame(rows)
 
 
 # ============================================================
@@ -414,7 +343,7 @@ def portfolio_summary(
     name="COMBINED PORTFOLIO"
 ):
     """
-    Print a clean portfolio summary.
+    Print clean portfolio summary.
     """
 
     metrics = calculate_portfolio_metrics(
@@ -468,7 +397,7 @@ def portfolio_summary(
 
 
 # ============================================================
-# 9. EQUITY CURVE DATA FOR PLOTTING
+# 9. PREPARE FINAL PLOT DATA
 # ============================================================
 
 def prepare_portfolio_plot_data(
@@ -478,38 +407,26 @@ def prepare_portfolio_plot_data(
     initial_capital
 ):
     """
-    Prepare all curves required for final plots.
-
-    Returns
-    -------
-    dict
+    Prepare curves for final visualization.
     """
 
-    strategy_portfolio = (
-        build_combined_portfolio(
-            strategy_curves,
-            initial_capital
-        )
+    strategy_portfolio = build_combined_portfolio(
+        strategy_curves,
+        initial_capital
     )
 
-    buy_hold_portfolio = (
-        build_buy_and_hold_portfolio(
-            buy_hold_curves,
-            initial_capital
-        )
+    buy_hold_portfolio = build_buy_and_hold_portfolio(
+        buy_hold_curves,
+        initial_capital
     )
 
-    benchmark_scaled = (
-        scale_benchmark_curve(
-            benchmark_curve,
-            initial_capital
-        )
+    benchmark_scaled = scale_benchmark_curve(
+        benchmark_curve,
+        initial_capital
     )
 
     return {
         "strategy": strategy_portfolio,
-
         "buy_hold": buy_hold_portfolio,
-
         "nifty_bank": benchmark_scaled,
     }
