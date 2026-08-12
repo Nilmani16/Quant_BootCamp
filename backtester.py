@@ -11,6 +11,10 @@ SLIPPAGE = 0.001               # 10 bps per side
 
 COOLDOWN_BARS = 1
 
+ATR_STOP_MULTIPLIER = 2.5
+ATR_TARGET_MULTIPLIER = 5.0
+ATR_TRAILING_MULTIPLIER = 3.0
+
 # ============================================================
 # 2. BACKTEST
 # ============================================================

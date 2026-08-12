@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from metrics import (
+    calculate_metrics,
     cumulative_return,
     annualized_return,
     sharpe_ratio,
@@ -114,6 +115,63 @@ def build_combined_portfolio(
         )
 
     return combined
+
+
+def build_portfolio(
+    results,
+    initial_capital=1_000_000.0
+):
+    """Build a combined portfolio from test-period equity curves."""
+
+    if not results:
+        raise ValueError("results cannot be empty.")
+
+    equity_curves = {}
+
+    for ticker, payload in results.items():
+
+        if not payload or "test" not in payload:
+            continue
+
+        equity_curve = payload["test"][0]
+
+        if equity_curve is None or len(equity_curve) == 0:
+            continue
+
+        if isinstance(equity_curve, pd.DataFrame):
+            if "Equity" not in equity_curve.columns:
+                raise ValueError(
+                    f"{ticker}: test equity curve must contain 'Equity' column."
+                )
+            equity_series = equity_curve["Equity"]
+        else:
+            equity_series = equity_curve.copy()
+
+        equity_series = equity_series.astype(float)
+
+        equity_curves[ticker] = equity_series
+
+    if not equity_curves:
+        raise ValueError(
+            "No valid test equity curves available for portfolio construction."
+        )
+
+    per_stock_capital = (
+        float(initial_capital) /
+        len(equity_curves)
+    )
+
+    scaled_curves = {
+        ticker: (
+            curve / curve.iloc[0] * per_stock_capital
+        )
+        for ticker, curve in equity_curves.items()
+    }
+
+    return build_combined_portfolio(
+        scaled_curves,
+        initial_capital
+    )
 
 
 # ============================================================
@@ -430,3 +488,62 @@ def prepare_portfolio_plot_data(
         "buy_hold": buy_hold_portfolio,
         "nifty_bank": benchmark_scaled,
     }
+
+
+def print_results(
+    results,
+    portfolio,
+    initial_capital=1_000_000.0
+):
+    """Print backtest and portfolio summaries."""
+
+    print("\n" + "=" * 80)
+    print("BACKTEST SUMMARY")
+    print("=" * 80)
+
+    for ticker, payload in results.items():
+
+        print(f"\nTicker: {ticker}")
+
+        for period in ("train", "test"):
+
+            if period not in payload:
+                continue
+
+            equity_curve, trades, result = payload[period]
+            metrics = calculate_metrics(
+                equity_curve,
+                trades,
+                result["Final Equity"],
+                result["Initial Capital"]
+            )
+
+            print(
+                f"  {period.title():<5} | "
+                f"Final Equity: ₹{metrics['Final Equity']:,.2f} | "
+                f"Return: {metrics['Cumulative Return (%)']:.2f}% | "
+                f"Sharpe: {metrics['Sharpe']:.3f} | "
+                f"Trades: {metrics['Trades']} | "
+                f"Win Rate: {metrics['Win Rate (%)']:.1f}%"
+            )
+
+    print("\n" + "=" * 80)
+    print("COMBINED PORTFOLIO")
+    print("=" * 80)
+
+    portfolio_metrics = calculate_portfolio_metrics(
+        portfolio,
+        initial_capital
+    )
+
+    for name, value in portfolio_metrics.items():
+
+        if isinstance(value, float):
+            if name.endswith("(%"):
+                print(f"{name:<25}: {value:.2f}%")
+            else:
+                print(f"{name:<25}: {value:,.2f}")
+        else:
+            print(f"{name:<25}: {value}")
+
+    print("=" * 80)
